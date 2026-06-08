@@ -1,29 +1,44 @@
-/**
- * Etape2Hotel.jsx – Sélection hôtel + types de chambre + quantités.
- */
-
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { setHotel, updateChambre, nextStep, prevStep } from '../../store/slices/surMesureSlice'
 import api from '../../services/api'
-import { Hotel, Star, ChevronDown, ChevronUp } from 'lucide-react'
+import { Hotel, Star } from 'lucide-react'
 import Button from '../common/Button'
 
 export default function Etape2Hotel() {
   const dispatch = useDispatch()
   const { wizard } = useSelector(s => s.surMesure)
 
-  const [hotels,       setHotels]       = useState([])
-  const [hotelDetail,  setHotelDetail]  = useState(null)  // détail avec typeChambres
-  const [loading,      setLoading]      = useState(false)
-  const [error,        setError]        = useState('')
+  const [hotels, setHotels] = useState([])
+  const [hotelDetail, setHotelDetail] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [capacityError, setCapacityError] = useState('')
 
-  // Charger la liste des hôtels
+  const totalVoyageurs = (wizard.nbAdultes || 0) + (wizard.nbEnfants || 0)
+
   useEffect(() => {
-    api.get('/hotels').then(r => setHotels(r.data?.data || r.data || []))
-  }, [])
+    const fetchHotels = async () => {
+      try {
+        let url = '/hotels'
+        if (wizard.destination?.id) {
+          url = `/hotels?destination_id=${wizard.destination.id}`
+        }
+        const res = await api.get(url)
+        let hotelsData = res.data?.data || res.data || []
+        
+        if (wizard.destination?.ville_id) {
+          hotelsData = hotelsData.filter(h => h.ville_id === wizard.destination.ville_id)
+        }
+        
+        setHotels(hotelsData)
+      } catch (err) {
+        setError('Erreur de chargement des hôtels')
+      }
+    }
+    fetchHotels()
+  }, [wizard.destination])
 
-  // Charger le détail quand un hôtel est sélectionné
   const handleSelectHotel = async (hotel) => {
     dispatch(setHotel(hotel))
     setLoading(true)
@@ -42,24 +57,43 @@ export default function Etape2Hotel() {
   const handleNext = () => {
     if (!selectedHotel) { setError('Veuillez choisir un hôtel.'); return }
     if (wizard.chambres.length === 0) { setError('Veuillez sélectionner au moins un type de chambre.'); return }
+    
+    let totalCapacite = 0
+    wizard.chambres.forEach(c => {
+      const typeChambre = typeChambres.find(tc => tc.id === c.type_chambre_id)
+      if (typeChambre) {
+        totalCapacite += typeChambre.capacite_max * c.quantite
+      }
+    })
+    
+    if (totalCapacite < totalVoyageurs) {
+      setCapacityError(`Capacité totale des chambres (${totalCapacite} pers.) insuffisante pour ${totalVoyageurs} voyageurs.`)
+      return
+    }
+    
     setError('')
+    setCapacityError('')
     dispatch(nextStep())
   }
 
-  // Quantité d'une chambre dans le wizard
   const getQty = (typeChambreId) =>
     wizard.chambres.find(c => c.type_chambre_id === typeChambreId)?.quantite || 0
 
   const handleQtyChange = (tc, qty) => {
     dispatch(updateChambre({
       type_chambre_id: tc.id,
-      nom:             tc.nom,
-      quantite:        parseInt(qty) || 0,
-      prix_par_nuit:   tc.pivot?.prix_par_nuit || 0,
+      nom: tc.nom,
+      quantite: parseInt(qty) || 0,
+      prix_par_nuit: tc.pivot?.prix_par_nuit || 0,
+      capacite_max: tc.capacite_max,
     }))
   }
 
   const typeChambres = hotelDetail?.type_chambres || selectedHotel?.type_chambres || []
+
+  const nbNuits = wizard.dateDepart && wizard.dateRetour
+    ? Math.max(1, Math.ceil((new Date(wizard.dateRetour) - new Date(wizard.dateDepart)) / 86400000))
+    : 1
 
   return (
     <div className="space-y-6">
@@ -68,9 +102,9 @@ export default function Etape2Hotel() {
           <Hotel size={20} className="text-secondary" /> Hébergement
         </h2>
         <p className="text-sm text-gray-400 mt-1">Choisissez votre hôtel et vos chambres.</p>
+        <p className="text-xs text-gray-500 mt-1">Total voyageurs : {totalVoyageurs} personnes</p>
       </div>
 
-      {/* Sélection hôtel */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">Hôtel *</label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
@@ -79,11 +113,10 @@ export default function Etape2Hotel() {
               key={h.id}
               type="button"
               onClick={() => handleSelectHotel(h)}
-              className={`text-left p-3 rounded-xl border-2 transition-all ${
-                selectedHotel?.id === h.id
+              className={`text-left p-3 rounded-xl border-2 transition-all ${selectedHotel?.id === h.id
                   ? 'border-secondary bg-secondary/5'
                   : 'border-gray-100 hover:border-gray-200'
-              }`}
+                }`}
             >
               {h.image_principale && (
                 <img src={h.image_principale} alt={h.nom}
@@ -102,9 +135,9 @@ export default function Etape2Hotel() {
           ))}
         </div>
         {error && <p className="text-xs text-danger mt-1">{error}</p>}
+        {capacityError && <p className="text-xs text-danger mt-1">{capacityError}</p>}
       </div>
 
-      {/* Types de chambre */}
       {selectedHotel && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -120,19 +153,13 @@ export default function Etape2Hotel() {
           ) : (
             <div className="space-y-2">
               {typeChambres.map(tc => {
-                const qty        = getQty(tc.id)
-                const prixNuit   = tc.pivot?.prix_par_nuit || 0
-                const nbNuits    = wizard.dateDepart && wizard.dateRetour
-                  ? Math.max(1, Math.ceil(
-                      (new Date(wizard.dateRetour) - new Date(wizard.dateDepart)) / 86400000
-                    ))
-                  : 1
+                const qty = getQty(tc.id)
+                const prixNuit = tc.pivot?.prix_par_nuit || 0
 
                 return (
                   <div key={tc.id}
-                    className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
-                      qty > 0 ? 'border-secondary/40 bg-secondary/5' : 'border-gray-100'
-                    }`}
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-all ${qty > 0 ? 'border-secondary/40 bg-secondary/5' : 'border-gray-100'
+                      }`}
                   >
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-gray-800">{tc.nom}</p>
@@ -143,7 +170,6 @@ export default function Etape2Hotel() {
                       </p>
                     </div>
 
-                    {/* Compteur */}
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -166,10 +192,20 @@ export default function Etape2Hotel() {
               })}
             </div>
           )}
+          
+          {wizard.chambres.length > 0 && (
+            <div className="mt-3 p-2 bg-secondary/5 rounded-lg">
+              <p className="text-xs text-gray-600">
+                Capacité totale : {wizard.chambres.reduce((sum, c) => {
+                  const tc = typeChambres.find(t => t.id === c.type_chambre_id)
+                  return sum + (tc?.capacite_max || 0) * c.quantite
+                }, 0)} personnes
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Navigation */}
       <div className="flex justify-between pt-2">
         <Button variant="outline" onClick={() => dispatch(prevStep())}>← Retour</Button>
         <Button onClick={handleNext}>Suivant →</Button>

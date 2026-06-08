@@ -1,7 +1,3 @@
-/**
- * Etape3Activites.jsx – Sélection activités + nb voyageurs par activité.
- */
-
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { toggleActivite, updateActiviteVoyageurs, nextStep, prevStep } from '../../store/slices/surMesureSlice'
@@ -14,19 +10,27 @@ export default function Etape3Activites() {
   const { wizard } = useSelector(s => s.surMesure)
 
   const [activitesList, setActivitesList] = useState([])
-  const [loading,       setLoading]       = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    setLoading(true)
-    api.get('/activites')
-      .then(r => setActivitesList(r.data?.data || r.data || []))
-      .finally(() => setLoading(false))
+    const fetchActivites = async () => {
+      try {
+        setLoading(true)
+        const res = await api.get('/activites')
+        setActivitesList(res.data?.data || res.data || [])
+      } catch (err) {
+        setError('Erreur de chargement des activités')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchActivites()
   }, [])
 
   const isSelected = (id) => wizard.activites.some(a => a.activite_id === id)
-  const getAct     = (id) => wizard.activites.find(a => a.activite_id === id)
+  const getAct = (id) => wizard.activites.find(a => a.activite_id === id)
 
-  // Filtrer par destination si fournie
   const filteredActivites = wizard.destination?.id
     ? activitesList.filter(a => !a.destination_id || a.destination_id === wizard.destination.id)
     : activitesList
@@ -43,6 +47,8 @@ export default function Etape3Activites() {
         </p>
       </div>
 
+      {error && <p className="text-xs text-danger">{error}</p>}
+
       {loading ? (
         <p className="text-sm text-gray-400">Chargement des activités…</p>
       ) : filteredActivites.length === 0 ? (
@@ -54,21 +60,19 @@ export default function Etape3Activites() {
         <div className="space-y-3">
           {filteredActivites.map(act => {
             const selected = isSelected(act.id)
-            const actData  = getAct(act.id)
+            const actData = getAct(act.id)
 
             return (
               <div key={act.id}
-                className={`rounded-xl border-2 transition-all overflow-hidden ${
-                  selected ? 'border-secondary' : 'border-gray-100'
-                }`}
+                className={`rounded-xl border-2 transition-all overflow-hidden ${selected ? 'border-secondary' : 'border-gray-100'
+                  }`}
               >
-                {/* En-tête activité */}
                 <button
                   type="button"
                   onClick={() => dispatch(toggleActivite({
-                    activite_id:    act.id,
-                    nom:            act.nom,
-                    prix:           act.prix,
+                    activite_id: act.id,
+                    nom: act.nom,
+                    prix: act.prix,
                     adapte_enfants: act.adapte_enfants,
                   }))}
                   className="w-full flex items-center gap-3 p-3 text-left"
@@ -87,14 +91,12 @@ export default function Etape3Activites() {
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{act.description}</p>
                     )}
                   </div>
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                    selected ? 'bg-secondary border-secondary' : 'border-gray-300'
-                  }`}>
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${selected ? 'bg-secondary border-secondary' : 'border-gray-300'
+                    }`}>
                     {selected && <CheckCircle size={14} className="text-white" />}
                   </div>
                 </button>
 
-                {/* Voyageurs par activité (visible si sélectionnée) */}
                 {selected && (
                   <div className="border-t border-secondary/20 bg-secondary/5 px-4 py-3">
                     <p className="text-xs font-medium text-gray-600 mb-2">Participants à cette activité :</p>
@@ -108,8 +110,8 @@ export default function Etape3Activites() {
                           value={actData?.nb_adultes ?? wizard.nbAdultes}
                           onChange={e => dispatch(updateActiviteVoyageurs({
                             activite_id: act.id,
-                            nb_adultes:  parseInt(e.target.value) || 0,
-                            nb_enfants:  actData?.nb_enfants ?? 0,
+                            nb_adultes: parseInt(e.target.value) || 0,
+                            nb_enfants: actData?.nb_enfants ?? 0,
                           }))}
                           className="w-16 input-field py-1 text-sm text-center"
                         />
@@ -124,8 +126,8 @@ export default function Etape3Activites() {
                             value={actData?.nb_enfants ?? 0}
                             onChange={e => dispatch(updateActiviteVoyageurs({
                               activite_id: act.id,
-                              nb_adultes:  actData?.nb_adultes ?? wizard.nbAdultes,
-                              nb_enfants:  parseInt(e.target.value) || 0,
+                              nb_adultes: actData?.nb_adultes ?? wizard.nbAdultes,
+                              nb_enfants: parseInt(e.target.value) || 0,
                             }))}
                             className="w-16 input-field py-1 text-sm text-center"
                           />
@@ -140,7 +142,6 @@ export default function Etape3Activites() {
         </div>
       )}
 
-      {/* Résumé activités sélectionnées */}
       {wizard.activites.length > 0 && (
         <div className="bg-secondary/5 rounded-xl p-3">
           <p className="text-xs font-semibold text-secondary mb-1">
@@ -157,7 +158,6 @@ export default function Etape3Activites() {
         </div>
       )}
 
-      {/* Navigation */}
       <div className="flex justify-between pt-2">
         <Button variant="outline" onClick={() => dispatch(prevStep())}>← Retour</Button>
         <Button onClick={() => dispatch(nextStep())}>

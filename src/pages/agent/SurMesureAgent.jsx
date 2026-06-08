@@ -9,9 +9,12 @@ import { MapPin, Calendar, User, TrendingUp, Eye, RefreshCw } from 'lucide-react
 
 const STATUT_COLORS = {
   'En attente':    'bg-amber-100 text-amber-700',
-  'En cours':      'bg-blue-100 text-blue-700',
-  'Confirmé':      'bg-emerald-100 text-emerald-700',
-  'Annulé':        'bg-red-100 text-red-700',
+  'En validation': 'bg-blue-100 text-blue-700',
+  'Valide':        'bg-emerald-100 text-emerald-700',
+  'Refuse':        'bg-red-100 text-red-700',
+  'En cours de traitement': 'bg-purple-100 text-purple-700',
+  'Devis envoye':  'bg-indigo-100 text-indigo-700',
+  'Facture envoyee': 'bg-cyan-100 text-cyan-700',
 }
 
 export default function SurMesureAgent() {
@@ -67,7 +70,6 @@ export default function SurMesureAgent() {
 
       {alert && <Alert type={alert.type} message={alert.message} onClose={() => setAlert(null)} />}
 
-      {/* Filtre statut */}
       {statuts.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           <button
@@ -104,7 +106,6 @@ export default function SurMesureAgent() {
           {filtered.map(d => (
             <div key={d.id} className="card p-5">
               <div className="flex items-start gap-4">
-                {/* Destination image */}
                 {d.destination?.image_couverture ? (
                   <img
                     src={d.destination.image_couverture}
@@ -139,7 +140,6 @@ export default function SurMesureAgent() {
                       </div>
                     </div>
 
-                    {/* Statut badge + select */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {d.statut && (
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -151,9 +151,15 @@ export default function SurMesureAgent() {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center gap-3 mt-3 flex-wrap">
                     <StatutSelect id={d.id} currentStatutId={d.statut?.id} onChange={handleStatutChange} />
+                    
+                    <Link
+                      to={`/agent/sur-mesure/${d.id}`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors"
+                    >
+                      <Eye size={14} /> Voir les détails
+                    </Link>
                   </div>
                 </div>
               </div>

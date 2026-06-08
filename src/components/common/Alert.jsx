@@ -1,4 +1,4 @@
-// ── Alert.jsx ────────────────────────────────────────────────────────────────
+
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react'
 
 const ALERT_CONFIG = {

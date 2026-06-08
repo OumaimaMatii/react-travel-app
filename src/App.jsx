@@ -1,37 +1,38 @@
 import React, { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { fetchCurrentUser } from './store/slices/authSlice'
 
-/* ── Pages publiques ── */
+/* Pages publiques */
 import HomePage          from './pages/public/HomePage'
 import ForfaitsPage      from './pages/public/ForfaitsPage'
 import ForfaitDetailPage from './pages/public/ForfaitDetailPage'
 import LoginPage         from './pages/public/LoginPage'
 import RegisterPage      from './pages/public/RegisterPage'
 
-/* ── Layouts ── */
+/* Layouts */
 import ClientLayout from './components/layout/ClientLayout'
 import AgentLayout  from './components/layout/AgentLayout'
 import AdminLayout  from './components/layout/AdminLayout'
 
-/* ── Pages client ── */
+/* Pages client */
 import ClientDashboard   from './pages/client/ClientDashboard'
 import MesReservations   from './pages/client/MesReservations'
 import ReservationDetail from './pages/client/ReservationDetail'
 import MesNotifications  from './pages/client/MesNotifications'
 import SurMesureWizard   from './pages/client/SurMesureWizard'
 
-/* ── Pages agent ── */
+/* Pages agent */
 import AgentDashboard         from './pages/agent/AgentDashboard'
 import MesForfaits            from './pages/agent/MesForfaits'
 import ForfaitDetailAgent     from './pages/agent/ForfaitDetailAgent'
 import ForfaitReservations    from './pages/agent/ForfaitReservations'
 import ReservationDetailAgent from './pages/agent/ReservationDetailAgent'
 import SurMesureAgent         from './pages/agent/SurMesureAgent'
+import SurMesureDetailAgent   from './pages/agent/SurMesureDetailAgent'
 import AgentNotifications     from './pages/agent/AgentNotifications'
 
-/* ── Pages admin ── */
+/* Pages admin */
 import AdminDashboard    from './pages/admin/AdminDashboard'
 import AdminSurMesure    from './pages/admin/AdminSurMesure'
 import AdminDestinations from './pages/admin/AdminDestinations'
@@ -39,29 +40,21 @@ import AdminHotels       from './pages/admin/AdminHotels'
 import AdminActivites    from './pages/admin/AdminActivites'
 import AdminUtilisateurs from './pages/admin/AdminUtilisateurs'
 
-/* ─────────────────────────────────────────────────────────────────── */
-/* Guards                                                              */
-/* ─────────────────────────────────────────────────────────────────── */
+/* ---------------------------------------------------------------- */
+/* Guards                                                           */
+/* ---------------------------------------------------------------- */
 
-/**
- * Redirige si non connecté.
- */
 function RequireAuth({ children }) {
   const { token } = useSelector(s => s.auth)
   if (!token) return <Navigate to="/login" replace />
   return children
 }
 
-/**
- * Redirige si le rôle ne correspond pas.
- * Agent → /agent, Admin → /admin, Client → /client
- */
 function RequireRole({ role, children }) {
   const { user } = useSelector(s => s.auth)
   if (!user) return <Navigate to="/login" replace />
   const roles = Array.isArray(role) ? role : [role]
   if (!roles.includes(user.role)) {
-    // Rediriger vers l'espace approprié selon le rôle réel
     if (user.role === 'admin')  return <Navigate to="/admin"  replace />
     if (user.role === 'agent')  return <Navigate to="/agent"  replace />
     return <Navigate to="/client" replace />
@@ -69,21 +62,16 @@ function RequireRole({ role, children }) {
   return children
 }
 
-/**
- * Redirige les utilisateurs connectés hors des pages publiques.
- * Agent → /agent, Admin → /admin (ils ne doivent PAS voir les pages publiques)
- */
 function PublicOnlyForClient({ children }) {
   const { user, token } = useSelector(s => s.auth)
   if (token && user) {
     if (user.role === 'admin')  return <Navigate to="/admin"  replace />
     if (user.role === 'agent')  return <Navigate to="/agent"  replace />
-    // Le client peut voir les pages publiques
   }
   return children
 }
 
-/* ─────────────────────────────────────────────────────────────────── */
+/* ---------------------------------------------------------------- */
 
 export default function App() {
   const dispatch   = useDispatch()
@@ -91,13 +79,13 @@ export default function App() {
 
   useEffect(() => {
     if (token) dispatch(fetchCurrentUser())
-  }, [])
+  }, [dispatch, token])
 
   return (
     <BrowserRouter>
       <Routes>
 
-        {/* ── Pages publiques (client uniquement, agent/admin redirigés) ── */}
+        {/* Pages publiques */}
         <Route path="/" element={
           <PublicOnlyForClient><HomePage /></PublicOnlyForClient>
         } />
@@ -114,7 +102,7 @@ export default function App() {
           <PublicOnlyForClient><RegisterPage /></PublicOnlyForClient>
         } />
 
-        {/* ── Espace client ── */}
+        {/* Espace client */}
         <Route path="/client" element={
           <RequireAuth>
             <RequireRole role="client">
@@ -129,7 +117,7 @@ export default function App() {
           <Route path="sur-mesure"             element={<SurMesureWizard />} />
         </Route>
 
-        {/* ── Espace agent (pas de forfaits publics ni réservations publiques) ── */}
+        {/* Espace agent */}
         <Route path="/agent" element={
           <RequireAuth>
             <RequireRole role="agent">
@@ -143,12 +131,14 @@ export default function App() {
           <Route path="forfaits/:forfaitId/reservations"       element={<ForfaitReservations />} />
           <Route path="reservations/:id"                       element={<ReservationDetailAgent />} />
           <Route path="sur-mesure"                             element={<SurMesureAgent />} />
+          <Route path="sur-mesure/:id"                         element={<SurMesureDetailAgent />} />
           <Route path="notifications"                          element={<AgentNotifications />} />
+          
+          {/* Route pour confirmer l'annulation du transport (agent) */}
+          <Route path="reservations/:id/confirmer-annulation-transport" element={<ReservationDetailAgent />} />
         </Route>
 
-        {/* ── Espace admin (destinations, hôtels, activités, utilisateurs, sur-mesure) ──
-             NOTE : l'admin N'A PAS accès aux forfaits ni aux réservations directement.
-             Il passe par les agents pour ça. ── */}
+        {/* Espace admin */}
         <Route path="/admin" element={
           <RequireAuth>
             <RequireRole role="admin">
@@ -162,6 +152,9 @@ export default function App() {
           <Route path="hotels"           element={<AdminHotels />} />
           <Route path="activites"        element={<AdminActivites />} />
           <Route path="utilisateurs"     element={<AdminUtilisateurs />} />
+          
+          {/* Route pour confirmer l'annulation du transport (admin) */}
+          <Route path="reservations/:id/confirmer-annulation-transport" element={<ReservationDetailAgent />} />
         </Route>
 
         {/* Fallback */}

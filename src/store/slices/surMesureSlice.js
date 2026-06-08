@@ -1,11 +1,6 @@
-/**
- * Redux slice pour le wizard "Voyage Sur Mesure".
- * Gère :
- *   - l'état du wizard (étapes 1-6)
- *   - les données sélectionnées par le client
- *   - le calcul de prix
- *   - la soumission finale
- */
+// store/slices/surMesureSlice.js
+// Redux slice pour le wizard "Voyage Sur Mesure".
+// AJOUT : action goToStep pour le pré-remplissage depuis une réservation expirée.
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import surMesureService from '../../services/surMesureService';
@@ -14,10 +9,10 @@ import surMesureService from '../../services/surMesureService';
 
 export const fetchTransports = createAsyncThunk(
   'surMesure/fetchTransports',
-  async (villeDepart, { rejectWithValue }) => {
+  async ({ villeDepart, villeArrivee } = {}, { rejectWithValue }) => {
     try {
-      const res = await surMesureService.getTransports(villeDepart);
-      return res.data?.data || [];
+      const res = await surMesureService.getTransports(villeDepart || '');
+      return res.data?.data || res.data || [];
     } catch (e) {
       return rejectWithValue(e.message);
     }
@@ -86,12 +81,12 @@ const initialState = {
   wizard:      initialWizard,
   transports:  [],
   commission:  15,
-  calcul:      null,  // résultat de calculerPrix
+  calcul:      null,
   loading:     false,
   calcLoading: false,
   error:       null,
   submitted:   false,
-  result:      null,  // réponse API après soumission
+  result:      null,
 };
 
 // ─── Slice ──────────────────────────────────────────────────────────────────
@@ -107,17 +102,18 @@ const surMesureSlice = createSlice({
     prevStep(state) {
       if (state.wizard.currentStep > 1) state.wizard.currentStep -= 1;
     },
+    // ← NOUVEAU : aller directement à une étape (utilisé pour le pré-remplissage)
     goToStep(state, action) {
-      state.wizard.currentStep = action.payload;
+      const step = action.payload;
+      if (step >= 1 && step <= 6) state.wizard.currentStep = step;
     },
 
-    // Étape 1 – Infos de base
+    // Étape 1
     setDestination(state, action) {
       state.wizard.destination = action.payload;
     },
     setVilleDepart(state, action) {
       state.wizard.villeDepart = action.payload;
-      // Réinitialiser les transports quand la ville change
       state.wizard.transportAller  = null;
       state.wizard.transportRetour = null;
       state.transports = [];
@@ -133,16 +129,13 @@ const surMesureSlice = createSlice({
 
     // Étape 2 – Hôtel
     setHotel(state, action) {
-      state.wizard.hotel   = action.payload;
+      state.wizard.hotel    = action.payload;
       state.wizard.chambres = [];
     },
     updateChambre(state, action) {
-      // action.payload: { type_chambre_id, nom, quantite, prix_par_nuit }
       const { type_chambre_id } = action.payload;
       const idx = state.wizard.chambres.findIndex(c => c.type_chambre_id === type_chambre_id);
-
       if (action.payload.quantite <= 0) {
-        // Retirer la chambre si quantité = 0
         if (idx !== -1) state.wizard.chambres.splice(idx, 1);
       } else if (idx !== -1) {
         state.wizard.chambres[idx] = action.payload;
@@ -153,10 +146,8 @@ const surMesureSlice = createSlice({
 
     // Étape 3 – Activités
     toggleActivite(state, action) {
-      // action.payload: { activite_id, nom, prix, adapte_enfants }
       const { activite_id } = action.payload;
       const idx = state.wizard.activites.findIndex(a => a.activite_id === activite_id);
-
       if (idx !== -1) {
         state.wizard.activites.splice(idx, 1);
       } else {
@@ -168,7 +159,6 @@ const surMesureSlice = createSlice({
       }
     },
     updateActiviteVoyageurs(state, action) {
-      // action.payload: { activite_id, nb_adultes, nb_enfants }
       const idx = state.wizard.activites.findIndex(a => a.activite_id === action.payload.activite_id);
       if (idx !== -1) {
         state.wizard.activites[idx].nb_adultes = action.payload.nb_adultes;
@@ -198,48 +188,41 @@ const surMesureSlice = createSlice({
   },
 
   extraReducers: (builder) => {
-    // fetchTransports
     builder
-      .addCase(fetchTransports.pending, (state) => { state.loading = true; })
+      .addCase(fetchTransports.pending,   (state) => { state.loading = true; })
       .addCase(fetchTransports.fulfilled, (state, action) => {
         state.loading    = false;
         state.transports = action.payload;
       })
-      .addCase(fetchTransports.rejected, (state, action) => {
+      .addCase(fetchTransports.rejected,  (state, action) => {
         state.loading = false;
         state.error   = action.payload;
       });
 
-    // fetchCommission
     builder
       .addCase(fetchCommission.fulfilled, (state, action) => {
         state.commission = action.payload;
       });
 
-    // calculerPrix
     builder
-      .addCase(calculerPrix.pending, (state) => { state.calcLoading = true; })
+      .addCase(calculerPrix.pending,   (state) => { state.calcLoading = true; })
       .addCase(calculerPrix.fulfilled, (state, action) => {
         state.calcLoading = false;
         state.calcul      = action.payload;
       })
-      .addCase(calculerPrix.rejected, (state, action) => {
+      .addCase(calculerPrix.rejected,  (state, action) => {
         state.calcLoading = false;
         state.error       = action.payload;
       });
 
-    // submitSurMesure
     builder
-      .addCase(submitSurMesure.pending, (state) => {
-        state.loading = true;
-        state.error   = null;
-      })
+      .addCase(submitSurMesure.pending,   (state) => { state.loading = true; state.error = null; })
       .addCase(submitSurMesure.fulfilled, (state, action) => {
         state.loading   = false;
         state.submitted = true;
         state.result    = action.payload;
       })
-      .addCase(submitSurMesure.rejected, (state, action) => {
+      .addCase(submitSurMesure.rejected,  (state, action) => {
         state.loading = false;
         state.error   = action.payload;
       });

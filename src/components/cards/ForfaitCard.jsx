@@ -1,9 +1,3 @@
-/**
- * ForfaitCard.jsx – Carte forfait.
- * Corrigé :
- *  - Affichage correct de destination depuis voyage.destination (resource corrigée)
- *  - showActions : bouton "Voir réservations" pour l'agent
- */
 
 import React from 'react'
 import { Link } from 'react-router-dom'
@@ -54,7 +48,7 @@ export default function ForfaitCard({ forfait, showActions = false, onEdit, onDe
 
         <div className="absolute bottom-3 left-3 text-white">
           <div className="flex items-center gap-1 text-xs font-medium">
-            <MapPin size={11} />
+            
             {dest?.nom}{dest?.pays ? `, ${dest.pays}` : ''}
           </div>
         </div>
